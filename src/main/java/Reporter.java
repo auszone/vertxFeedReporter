@@ -15,6 +15,7 @@ public class Reporter {
   private final static String feedURI = inventoryBaseURI + "feeds/";
   private final static String feedId = "vertx-localhost";
   private final static String resourceURI =  feedURI + feedId + "/resources/";
+  private final static String resourceTypeURI =  feedURI + feedId + "/resourceTypes/";
   private final static String vertxResourceId = "vertx";
   private final static String metricTypeURI = feedURI + feedId + "/metricTypes/";
   private final static String eventBusResourceId = "event-bus";
@@ -27,6 +28,7 @@ public class Reporter {
   public static void main(String [] argv) {
     Reporter reporter = new Reporter();
     try {
+      Future<HttpClientResponse> fut = Future.future();
       Future<HttpClientResponse> fut1 = Future.future();
       Future<HttpClientResponse> fut2 = Future.future();
       Future<HttpClientResponse> fut3 = Future.future();
@@ -36,21 +38,38 @@ public class Reporter {
       HttpClientRequest request = reporter.getHttpRequest(host, feedURI, HttpMethod.POST).handler(response -> {
         if (response.statusCode() == 201) {
           System.out.println("Created feed!");
-          fut1.complete();
+          fut.complete();
         } else {
-          fut1.fail("Fail when Creating feed");
+          fut.fail("Fail when creating feed");
         }
       });
       JsonObject json = new JsonObject().put("id", feedId);
       request.end(json.encode());
 
+      fut.compose(response -> {
+        // step 1: create customized resource type
+        HttpClientRequest request1 = reporter.getHttpRequest(host, resourceTypeURI, HttpMethod.POST).handler(response1 -> {
+          if (response1.statusCode() == 201) {
+            System.out.println("Created customized resource type");
+            fut1.complete();
+          } else {
+            response1.bodyHandler(buffer -> {
+              System.err.println(buffer.getBuffer(0, buffer.length()));
+            });
+            fut1.fail("Fail when creating resource type");
+          }
+        });
+        JsonObject json1 = new JsonObject().put("id", "MYRT");
+        request1.end(json1.encode());
+      }, fut1);
+
       fut1.compose(response -> {
-        // step 2: create a vertx
+        // step 2: create a vertx resource
         HttpClientRequest request1 = reporter.getHttpRequest(host, resourceURI, HttpMethod.POST).handler(response1 -> {
           System.out.println("Created vertx resource!");
           fut2.complete();
         });
-        JsonObject json1 = new JsonObject().put("id", vertxResourceId).put("resourceTypePath", "/rt;URL")
+        JsonObject json1 = new JsonObject().put("id", vertxResourceId).put("resourceTypePath", "/rt;MYRT")
                 .put("properties", new JsonObject().put("type", "standalone"));
         request1.end(json1.encode());
       }, fut2);
@@ -61,7 +80,7 @@ public class Reporter {
           System.out.println("Created event_bus resource!");
           fut3.complete();
         });
-        JsonObject json2 = new JsonObject().put("id", eventBusResourceId).put("resourceTypePath", "/rt;URL");
+        JsonObject json2 = new JsonObject().put("id", eventBusResourceId).put("resourceTypePath", "/rt;MYRT");
         request2.end(json2.encode());
       }, fut3);
 
