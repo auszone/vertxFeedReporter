@@ -28,95 +28,110 @@ public class Reporter {
   public static void main(String [] argv) {
     Reporter reporter = new Reporter();
     try {
-      Future<Void> fut0 = Future.future();
-      Future<Void> fut1 = Future.future();
-      Future<Void> fut2 = Future.future();
-      Future<Void> fut3 = Future.future();
-      Future<Void> fut4 = Future.future();
-      Future<Void> fut5 = Future.future();
+      Future<Void> feedFut = Future.future();
+      Future<Void> vertxRTFut = Future.future();
+      Future<Void> vertxRsrFut = Future.future();
+      Future<Void> eventBusRTFut = Future.future();
+      Future<Void> eventBusRsrFut = Future.future();
+      Future<Void> mTFut = Future.future();
+      Future<Void> mtcFut = Future.future();
       // step 0: create feed
       HttpClientRequest request = reporter.getHttpRequest(host, feedURI, HttpMethod.POST).handler(resp -> {
         if (resp.statusCode() == 201) {
           System.out.println("Created feed!");
-          fut0.complete();
+          feedFut.complete();
         } else {
-          fut0.fail("Fail when creating feed");
+          feedFut.fail("Fail when creating feed");
         }
       });
       request.end(new JsonObject().put("id", feedId).encode());
 
-      fut0.compose(Void -> {
-        // step 1: create customized resource type
+      feedFut.compose(Void -> {
+        // step 1: create vertx resource type
         HttpClientRequest req = reporter.getHttpRequest(host, resourceTypeURI, HttpMethod.POST).handler(resp -> {
           if (resp.statusCode() == 201) {
-            System.out.println("Created customized resource type");
-            fut1.complete();
+            System.out.println("Created vertx resource type");
+            vertxRTFut.complete();
           } else {
-            fut1.fail("Fail when creating resource type");
+            vertxRTFut.fail("Fail when creating vertx resource type");
           }
         });
-        JsonObject json = new JsonObject().put("id", "MYRT");
+        JsonObject json = new JsonObject().put("id", "vertxRT");
         req.end(json.encode());
-      }, fut1);
+      }, vertxRTFut);
 
-      fut1.compose(Void -> {
+      vertxRTFut.compose(Void -> {
         // step 2: create a vertx resource
         HttpClientRequest req = reporter.getHttpRequest(host, resourceURI, HttpMethod.POST).handler(resp -> {
           if (resp.statusCode() == 201) {
             System.out.println("Created vertx resource!");
-            fut2.complete();
+            vertxRsrFut.complete();
           } else {
-            fut2.fail("Fail when creating resource vertx");
+            vertxRsrFut.fail("Fail when creating resource vertx");
           }
         });
-        JsonObject json = new JsonObject().put("id", vertxResourceId).put("resourceTypePath", "/f;" + feedId + "/rt;MYRT")
+        JsonObject json = new JsonObject().put("id", vertxResourceId).put("resourceTypePath", "/f;" + feedId + "/rt;vertxRT")
                 .put("properties", new JsonObject().put("type", "standalone"));
         req.end(json.encode());
-      }, fut2);
+      }, vertxRsrFut);
 
-      fut2.compose(Void -> {
-        // step 3: create a event bus resource
+      vertxRsrFut.compose(Void -> {
+        // step 3: create a event bus resource type
+        HttpClientRequest req = reporter.getHttpRequest(host, resourceTypeURI, HttpMethod.POST).handler(resp -> {
+          if (resp.statusCode() == 201) {
+            System.out.println("Created event bus resource type");
+            eventBusRTFut.complete();
+          } else {
+            eventBusRTFut.fail("Fail when creating event bus resource type");
+          }
+        });
+        JsonObject json = new JsonObject().put("id", "eventBusRT");
+        req.end(json.encode());
+      }, eventBusRTFut);
+
+      eventBusRTFut.compose(Void -> {
+        // step 4: create a event bus resource
         HttpClientRequest req = reporter.getHttpRequest(host, resourceURI, HttpMethod.POST).handler(resp -> {
           if (resp.statusCode() == 201) {
             System.out.println("Created event_bus resource!");
-            fut3.complete();
+            eventBusRsrFut.complete();
           } else {
-            fut3.fail("Fail when creating resource event bus");
+            eventBusRsrFut.fail("Fail when creating resource event bus");
           }
         });
-        JsonObject json = new JsonObject().put("id", eventBusResourceId).put("resourceTypePath", "/f;" + feedId + "/rt;MYRT");
+        JsonObject json = new JsonObject().put("id", eventBusResourceId).put("resourceTypePath", "/f;" + feedId + "/rt;eventBusRT");
         req.end(json.encode());
-      }, fut3);
+      }, eventBusRsrFut);
 
-      fut3.compose(Void -> {
-        // step 4: create a metric type
+      eventBusRsrFut.compose(Void -> {
+        // step 5: create a metric type
         HttpClientRequest req = reporter.getHttpRequest(host, metricTypeURI, HttpMethod.POST).handler(resp -> {
           if (resp.statusCode() == 201) {
             System.out.println("Created metric type COUNTER!");
-            fut4.complete();
+            mTFut.complete();
           } else {
-            fut4.fail("Fail when metric type COUNTER");
+            mTFut.fail("Fail when metric type COUNTER");
           }
         });
         JsonObject json = new JsonObject().put("id", metricTypeId).put("type", "COUNTER").put("unit", "NONE").put("collectionInterval", "30");
         req.end(json.encode());
-      }, fut4);
+      }, mTFut);
 
-      fut4.compose(Void -> {
-        // step 5: create a metric
+      mTFut.compose(Void -> {
+        // step 6: create a metric
         HttpClientRequest req = reporter.getHttpRequest(host, metricURI, HttpMethod.POST).handler(resp -> {
           if (resp.statusCode() == 201) {
             System.out.println("Created metric " + metricId);
-            fut5.complete();
+            mtcFut.complete();
           } else {
-            fut5.fail("Fail when creating metic " + metricId);
+            mtcFut.fail("Fail when creating metic " + metricId);
           }
         });
         JsonObject json = new JsonObject().put("id", metricId).put("metricTypePath", "/mt;" + metricTypeId);
         req.end(json.encode());
-      }, fut5);
+      }, mtcFut);
 
-      fut5.setHandler(httpClientResponseAsyncResult -> {
+      mtcFut.setHandler(httpClientResponseAsyncResult -> {
         if (httpClientResponseAsyncResult.failed()) {
           System.err.println(httpClientResponseAsyncResult.cause());
           reporter.deleteFeed(feedId);
