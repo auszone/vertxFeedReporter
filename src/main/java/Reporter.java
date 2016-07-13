@@ -1,5 +1,6 @@
 import io.vertx.core.*;
 import io.vertx.core.http.*;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 
@@ -11,6 +12,7 @@ import java.util.Base64;
 public class Reporter {
 
   private final static String host = "localhost";
+  private final static String tenant = "hawkular";
   private final static String inventoryBaseURI = "/hawkular/inventory/deprecated/";
   private final static String feedURI = inventoryBaseURI + "feeds/";
   private final static String feedId = "vertx-localhost";
@@ -35,6 +37,8 @@ public class Reporter {
       Future<Void> eventBusRsrFut = Future.future();
       Future<Void> mTFut = Future.future();
       Future<Void> mtcFut = Future.future();
+      Future<Void> assFut = Future.future();
+
       // step 0: create feed
       HttpClientRequest request = reporter.getHttpRequest(host, feedURI, HttpMethod.POST).handler(resp -> {
         if (resp.statusCode() == 201) {
@@ -113,12 +117,31 @@ public class Reporter {
             mTFut.fail("Fail when metric type COUNTER");
           }
         });
-        JsonObject json = new JsonObject().put("id", metricTypeId).put("type", "COUNTER").put("unit", "NONE").put("collectionInterval", "30");
+        JsonObject json = new JsonObject().put("id", metricTypeId).put("type", "COUNTER").put("unit", "NONE").put("collectionInterval", 30);
         req.end(json.encode());
       }, mTFut);
 
       mTFut.compose(Void -> {
-        // step 6: create a metric
+        // step 6: associate the metric type with event bus resource type
+        HttpClientRequest req = reporter.getHttpRequest(host, resourceTypeURI+"eventBusRT/metricTypes", HttpMethod.POST)
+                .handler(resp -> {
+          if (resp.statusCode() == 204) {
+            System.out.println("Associate metric type!");
+            assFut.complete();
+          } else {
+            resp.handler(buffer -> {
+              System.err.println(buffer.getBuffer(0,buffer.length()));
+            });
+            assFut.fail("Fail when associating  metric type COUNTER");
+          }
+        });
+        String metricPath = String.format("/t;%s/f;%s/mt;%s", tenant, feedId, metricTypeId);
+        JsonArray json = new JsonArray().add(metricPath);
+        req.end(json.encode());
+      }, assFut);
+
+      assFut.compose(Void -> {
+        // step 7: create a metric
         HttpClientRequest req = reporter.getHttpRequest(host, metricURI, HttpMethod.POST).handler(resp -> {
           if (resp.statusCode() == 201) {
             System.out.println("Created metric " + metricId);
