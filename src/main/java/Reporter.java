@@ -21,7 +21,7 @@ public class Reporter {
   private final static String vertxResourceId = "vertx";
   private final static String metricTypeURI = feedURI + feedId + "/metricTypes/";
   private final static String eventBusResourceId = "event-bus";
-  private final static String metricURI = resourceURI + eventBusResourceId + "/metrics/";
+  private final static String metricURI = resourceURI + "vertx/" + eventBusResourceId + "/metrics/";
   private final static String metricId = "registered-handlers";
   private final static String metricTypeId = "something-countable";
   private HttpClient client;
@@ -95,7 +95,7 @@ public class Reporter {
 
       eventBusRTFut.compose(Void -> {
         // step 4: create a event bus resource
-        HttpClientRequest req = reporter.getHttpRequest(host, resourceURI, HttpMethod.POST).handler(resp -> {
+        HttpClientRequest req = reporter.getHttpRequest(host, resourceURI+"vertx", HttpMethod.POST).handler(resp -> {
           if (resp.statusCode() == 201) {
             System.out.println("Created event_bus resource!");
             eventBusRsrFut.complete();
